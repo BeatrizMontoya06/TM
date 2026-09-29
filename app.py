@@ -9,7 +9,7 @@ import streamlit as st
 # CONFIGURACIÓN DE PÁGINA (ESTILO ARCADE RETRO)
 # ─────────────────────────────────────────────
 st.set_page_config(
-    page_title="Detección de Gestos by bee",
+    page_title="Detector de Gestos by bee",
     page_icon="🕹️",
     layout="centered",
     initial_sidebar_state="collapsed",
@@ -48,7 +48,7 @@ st.markdown(
 
     .arcade-title {
         font-family: 'Press Start 2P', monospace !important;
-        font-size: 1.6rem !important;
+        font-size: 1.4rem !important;
         color: #ffff00 !important;
         text-shadow: 3px 3px #ff007f, 6px 6px #000000;
         margin: 0;
@@ -146,7 +146,7 @@ data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
 st.markdown(
     """
 <div class="arcade-marquee">
-    <h1 class="arcade-title">Detección de objetos<br><span style="color: #00ffcc;">by bee</span></h1>
+    <h1 class="arcade-title">Detector de gestos<br><span style="color: #00ffcc;">by bee</span></h1>
     <div class="arcade-subtitle">★ INSERT COIN TO START NEURAL VISION ★</div>
 </div>
 """,
@@ -197,10 +197,10 @@ with st.sidebar:
   st.markdown("### 🕹️ POWER-UP INSTRUCTIONS")
   st.markdown(
       "Usando un modelo entrenado en **Teachable Machine**, puedes usar esta app"
-      " de máquina arcade para identificar posturas o gestos en tiempo real."
+      " de máquina arcade para identificar gestos en tiempo real."
   )
   st.markdown("---")
-  st.markdown("<b>CONTROLS:</b><br>• Conecta tu cámara.<br>• Posiciónate.", unsafe_allow_html=True)
+  st.markdown("<b>CONTROLS:</b><br>• Conecta tu cámara.<br>• Haz tu gesto.", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
 # CAPTURA DE CÁMARA (WIDGET PRINCIPAL)
@@ -273,7 +273,7 @@ st.markdown("<br><hr style='border: 2px dashed #ff007f;'>", unsafe_allow_html=Tr
 st.markdown(
     """
 <div style="text-align: center; font-family: 'VT323'; color: #ffff00; font-size: 1.4rem;">
-    © 198X-2026 // Detección de objetos by bee — ALL RIGHTS RESERVED
+    © 198X-2026 // Detector de gestos by bee — ALL RIGHTS RESERVED
 </div>
 """,
     unsafe_allow_html=True,
