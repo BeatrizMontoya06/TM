@@ -73,29 +73,15 @@ st.markdown(
         margin-bottom: 20px;
     }
 
-    /* Estilo para los Headers de resultados estilo Score / Game Over */
-    .arcade-result-left {
-        background: #2b0018;
-        border: 3px solid #ff007f;
-        color: #ff007f;
+    /* Estilos de resultados Arcade con Emojis */
+    .arcade-emoji-box {
         font-family: 'Press Start 2P', monospace;
-        font-size: 0.9rem !important;
-        padding: 15px;
+        font-size: 1rem !important;
+        padding: 20px;
         text-align: center;
-        box-shadow: 4px 4px 0px #ffff00;
         margin-top: 15px;
-    }
-
-    .arcade-result-up {
-        background: #002b1f;
-        border: 3px solid #00ffcc;
-        color: #00ffcc;
-        font-family: 'Press Start 2P', monospace;
-        font-size: 0.9rem !important;
-        padding: 15px;
-        text-align: center;
-        box-shadow: 4px 4px 0px #ff007f;
-        margin-top: 15px;
+        border-width: 3px;
+        border-style: solid;
     }
 
     /* Botones de Cámara Arcade */
@@ -147,7 +133,7 @@ st.markdown(
     """
 <div class="arcade-marquee">
     <h1 class="arcade-title">Detector de gestos<br><span style="color: #00ffcc;">by bee</span></h1>
-    <div class="arcade-subtitle">★ INSERT COIN TO START NEURAL VISION ★</div>
+    <div class="arcade-subtitle">★ EMOTION SCANNER ACTIVE ★</div>
 </div>
 """,
     unsafe_allow_html=True,
@@ -194,13 +180,21 @@ st.markdown("</div>", unsafe_allow_html=True)
 # BARRA LATERAL (SIDEBAR) ESTILO INVENTARIO ARCADE
 # ─────────────────────────────────────────────
 with st.sidebar:
-  st.markdown("### 🕹️ POWER-UP INSTRUCTIONS")
+  st.markdown("### 🕹️ EMOTION INDEX")
   st.markdown(
-      "Usando un modelo entrenado en **Teachable Machine**, puedes usar esta app"
-      " de máquina arcade para identificar gestos en tiempo real."
+      "Tu modelo en Teachable Machine debe estar entrenado en este orden exacto"
+      " de clases:"
+  )
+  st.markdown(
+      "• **Clase 0:** Sorprendido 😲<br>• **Clase 1:** Feliz 😃<br>•"
+      " **Clase 2:** Triste 😢<br>• **Clase 3:** Enojado 😡",
+      unsafe_allow_html=True,
   )
   st.markdown("---")
-  st.markdown("<b>CONTROLS:</b><br>• Conecta tu cámara.<br>• Haz tu gesto.", unsafe_allow_html=True)
+  st.markdown(
+      "<b>CONTROLS:</b><br>• Conecta tu cámara.<br>• Haz tu gesto facial.",
+      unsafe_allow_html=True,
+  )
 
 # ─────────────────────────────────────────────
 # CAPTURA DE CÁMARA (WIDGET PRINCIPAL)
@@ -218,53 +212,78 @@ img_file_buffer = st.camera_input("PLAYER 1: TOMA UNA FOTO")
 st.markdown("</div>", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
-# LÓGICA DE INFERENCIA Y PREDICCIÓN (MANTENIDA ÍNTEGRA)
+# LÓGICA DE INFERENCIA Y PREDICCIÓN CON EMOJIS
 # ─────────────────────────────────────────────
 if img_file_buffer is not None:
-  # To read image file buffer with OpenCV:
+  # Leer imagen con PIL y redimensionar a 224x224
   data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
-  # To read image file buffer as a PIL Image:
   img = Image.open(img_file_buffer)
-
   newsize = (224, 224)
   img = img.resize(newsize)
-  # To convert PIL Image to numpy array:
-  img_array = np.array(img)
 
-  # Normalize the image
+  # Convertir a numpy array y normalizar
+  img_array = np.array(img)
   normalized_image_array = (img_array.astype(np.float32) / 127.0) - 1
-  # Load the image into the array
   data[0] = normalized_image_array
 
-  # run the inference
+  # Ejecutar inferencia en el modelo Keras
   prediction = model.predict(data)
   print(prediction)
 
-  # Salidas de resultados estilizadas con contenedores arcade adaptados a tu lógica
+  # Evaluamos cada índice del arreglo de predicción (0 a 3) según el orden de tus clases
+  # Índice 0: Sorprendido
   if prediction[0][0] > 0.5:
     st.markdown(
-        f"""
-        <div class="arcade-result-left">
-            ◀ DETECCIÓN: IZQUIERDA<br>
-            <span style="font-size: 0.7rem; color: #ffff00;">PROBABILIDAD: {str(prediction[0][0])}</span>
+        """
+        <div class="arcade-emoji-box" style="background: #201a00; border-color: #ffff00; color: #ffff00; box-shadow: 4px 4px 0px #ff007f;">
+            ESTADO: SORPRENDIDO<br><br>
+            <span style="font-size: 3.5rem;">😲</span>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
+  # Índice 1: Feliz
   if prediction[0][1] > 0.5:
     st.markdown(
-        f"""
-        <div class="arcade-result-up">
-            ▲ DETECCIÓN: ARRIBA<br>
-            <span style="font-size: 0.7rem; color: #ffff00;">PROBABILIDAD: {str(prediction[0][1])}</span>
+        """
+        <div class="arcade-emoji-box" style="background: #002b1f; border-color: #00ffcc; color: #00ffcc; box-shadow: 4px 4px 0px #ffff00;">
+            ESTADO: FELIZ<br><br>
+            <span style="font-size: 3.5rem;">😃</span>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-  # if prediction[0][2]>0.5:
-  #     st.header('Derecha, con Probabilidad: '+str( prediction[0][2]))
+  # Índice 2: Triste (Asegúrate de haber entrenado esta clase en tu modelo .h5)
+  try:
+    if prediction[0][2] > 0.5:
+      st.markdown(
+          """
+            <div class="arcade-emoji-box" style="background: #00122b; border-color: #00f0ff; color: #00f0ff; box-shadow: 4px 4px 0px #ff007f;">
+                ESTADO: TRISTE<br><br>
+                <span style="font-size: 3.5rem;">😢</span>
+            </div>
+            """,
+          unsafe_allow_html=True,
+      )
+  except IndexError:
+    pass
+
+  # Índice 3: Enojado (Asegúrate de haber entrenado esta clase en tu modelo .h5)
+  try:
+    if prediction[0][3] > 0.5:
+      st.markdown(
+          """
+            <div class="arcade-emoji-box" style="background: #2b0000; border-color: #ff0044; color: #ff0044; box-shadow: 4px 4px 0px #00ffcc;">
+                ESTADO: ENOJADO<br><br>
+                <span style="font-size: 3.5rem;">😡</span>
+            </div>
+            """,
+          unsafe_allow_html=True,
+      )
+  except IndexError:
+    pass
 
 # ─────────────────────────────────────────────
 # PIE DE PÁGINA RETRO
