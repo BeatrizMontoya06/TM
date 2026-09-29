@@ -66,7 +66,6 @@ st.markdown(
         box-shadow: 0 0 20px #00ffcc;
     }
     
-    /* Estilizar el botón de Streamlit para que parezca de videojuego retro */
     .stButton>button {
         background-color: #ff007f !important;
         color: #ffffff !important;
@@ -88,9 +87,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Marquesina animada estilo 2000s
 st.markdown(
-    "<marquee>★ MODO FOTO INSTANTÁNEA ACTIVADO ★ CERO LAG ★ CAPTURA TU EMOCIÓN ★</marquee>",
+    "<marquee>★ DETECTOR DE ROSTRO INTELIGENTE ACTIVADO ★ ENFOCA TU CARA ★</marquee>",
     unsafe_allow_html=True,
 )
 
@@ -99,7 +97,7 @@ st.title("👾 EMOTION.EXE 👾")
 st.markdown(
     """
 <div class="y2k-box">
-    <p>¡Toma una foto haciendo una emoción para que el sistema la detecte al instante!</p>
+    <p>¡El sistema detectará tu rostro automáticamente para evaluar tu expresión!</p>
     <p style="font-size: 20px; color: #ff007f !important;">Emociones: Feliz 😊 | Triste 😢 | Enojado 😡 | Sorprendido 😲</p>
 </div>
 """,
@@ -119,38 +117,68 @@ def load_emotion_model():
 try:
   model, class_names = load_emotion_model()
 except Exception as e:
-  st.error(
-      f"⚠️ ERROR CRÍTICO EN EL SISTEMA: No se pudo cargar el modelo. Detalle:"
-      f" {e}"
-  )
+  st.error(f"⚠️ Error al cargar el modelo: {e}")
 
-# Componente nativo de Streamlit para tomar foto con la cámara del dispositivo
-picture = st.camera_input("📸 ENCIENDE TU CÁMARA Y TOMA UNA FOTO")
+# Widget para capturar foto
+picture = st.camera_input("📸 TOMA UNA FOTO DE TU ROSTRO")
 
 if picture is not None:
-  # Cargar la imagen tomada por el usuario
-  image = Image.open(picture)
+  # Cargar imagen usando PIL y convertirla a formato OpenCV (BGR)
+  image_pil = Image.open(picture)
+  img_cv = np.array(image_pil)
+  img_cv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2BGR)
 
-  # Preprocesar la imagen para Teachable Machine
-  # Convertir a RGB por si acaso y redimensionar exactamente a 224x224
-  image_resized = image.resize((224, 224))
+  # Cargar el clasificador de rostros integrado en OpenCV
+  face_cascade = cv2.CascadeClassifier(
+      cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+  )
+  gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+
+  # Buscar rostros en la foto
+  faces = face_cascade.detectMultiScale(
+      gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
+  )
+
+  # Si encuentra al menos una cara, recorta exactamente esa región
+  if len(faces) > 0:
+    # Tomar el primer rostro detectado (x, y, w, h)
+    x, y, w, h = faces[0]
+    # Expandir un poco el margen del recorte para incluir bien la expresión
+    margin = int(w * 0.1)
+    x1 = max(0, x - margin)
+    y1 = max(0, y - margin)
+    x2 = min(img_cv.shape[1], x + w + margin)
+    y2 = min(img_cv.shape[0], y + h + margin)
+
+    face_crop = img_cv[y1:y2, x1:x2]
+    # Convertir de vuelta a RGB para el modelo
+    face_rgb = cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB)
+    image_to_predict = Image.fromarray(face_rgb)
+  else:
+    # Si por alguna razón el filtro no detecta la cara de forma exacta, usa la imagen completa
+    image_to_predict = image_pil
+    st.warning(
+        "⚠️ No se detectó un rostro claramente, analizando la imagen"
+        " completa..."
+    )
+
+  # Preprocesar para Teachable Machine (224x224 exactos)
+  image_resized = image_to_predict.resize((224, 224))
   image_array = np.asarray(image_resized, dtype=np.float32)
-
-  # Normalizar igual que en el entrenamiento (-1 a 1)
   normalized_image_array = (image_array / 127.5) - 1.0
   data = np.expand_dims(normalized_image_array, axis=0)
 
-  # Realizar predicción con el modelo Keras
+  # Predicción con la IA
   prediction = model.predict(data, verbose=0)
   index = np.argmax(prediction)
   class_name = class_names[index]
 
-  # Limpiar el nombre de la clase (por si tiene índices al inicio tipo "0 feliz")
+  # Limpiar etiqueta
   if " " in class_name:
     class_name = " ".join(class_name.split(" ")[1:])
   class_clean = class_name.lower().strip()
 
-  # Mapear a Emojis de forma precisa
+  # Mapear emojis
   if "feliz" in class_clean or "happy" in class_clean:
     emoji = "😁"
   elif "triste" in class_clean or "sad" in class_clean:
@@ -164,9 +192,9 @@ if picture is not None:
 
   confidence = float(prediction[0][index]) * 100
 
-  # Mostrar resultados con estilo Y2K impactante
+  # Mostrar resultados limpios
   st.markdown("---")
-  st.markdown("<h3>⚡ RESULTADO DEL ANÁLISIS CIBERNÉTICO ⚡</h3>", unsafe_allow_html=True)
+  st.markdown("<h3>⚡ RESULTADO DEL ROSTRO ⚡</h3>", unsafe_allow_html=True)
   st.markdown(
       f'<div class="emoji-container">{emoji}</div>', unsafe_allow_html=True
   )
