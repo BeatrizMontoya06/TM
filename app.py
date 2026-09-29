@@ -1,74 +1,50 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, RTCConfiguration
 import cv2
-from deepface import DeepFace
-import av
+import numpy as np
+#from PIL import Image
+from PIL import Image as Image, ImageOps as ImagOps
+from keras.models import load_model
 
-# Configuración de la página
-st.set_page_config(page_title="Detector de Emociones", page_icon="🎭")
-st.title("Detección de Gestos en Tiempo Real 🎭")
-st.write("Enciende tu cámara web para detectar si estás: **Feliz, Triste, Sorprendido o Enojado**.")
+import platform
 
-# Configuración para que WebRTC funcione correctamente en la nube (Streamlit Cloud)
-RTC_CONFIGURATION = RTCConfiguration(
-    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-)
+# Muestra la versión de Python junto con detalles adicionales
+st.write("Versión de Python:", platform.python_version())
 
-# Cargar el modelo preentrenado de OpenCV para detectar rostros
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+model = load_model('keras_model.h5')
+data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
 
-# Diccionario para traducir las emociones al español
-TRADUCCION_EMOCIONES = {
-    'happy': 'Feliz 😄',
-    'sad': 'Triste 😢',
-    'surprise': 'Sorprendido 😲',
-    'angry': 'Enojado 😡',
-    'neutral': 'Neutral 😐',
-    'fear': 'Miedo 😨',
-    'disgust': 'Disgusto 🤢'
-}
+st.title("Reconocimiento de Imágenes")
+#st.write("Versión de Python:", platform.python_version())
+image = Image.open('OIG5.jpg')
+st.image(image, width=350)
+with st.sidebar:
+    st.subheader("Usando un modelo entrenado en teachable Machine puedes Usarlo en esta app para identificar")
+img_file_buffer = st.camera_input("Toma una Foto")
 
-def procesar_frame(frame):
-    # Convertir el frame de WebRTC a formato de imagen de OpenCV (array de numpy)
-    img = frame.to_ndarray(format="bgr24")
-    
-    # Convertir a escala de grises para mejorar la detección del rostro
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    
-    # Detectar rostros en la imagen
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+if img_file_buffer is not None:
+    # To read image file buffer with OpenCV:
+    data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
+   #To read image file buffer as a PIL Image:
+    img = Image.open(img_file_buffer)
 
-    for (x, y, w, h) in faces:
-        # Recortar solo la región del rostro
-        face_img = img[y:y+h, x:x+w]
-        
-        try:
-            # Analizar la emoción con DeepFace (enforce_detection=False evita errores si el rostro está borroso)
-            resultados = DeepFace.analyze(face_img, actions=['emotion'], enforce_detection=False)
-            
-            # DeepFace puede devolver una lista si detecta múltiples caras, tomamos la primera
-            emocion_dominante = resultados[0]['dominant_emotion']
-            emocion_es = TRADUCCION_EMOCIONES.get(emocion_dominante, emocion_dominante)
+    newsize = (224, 224)
+    img = img.resize(newsize)
+    # To convert PIL Image to numpy array:
+    img_array = np.array(img)
 
-            # Dibujar un rectángulo verde alrededor de la cara
-            cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
-            
-            # Escribir la emoción detectada arriba del rectángulo
-            cv2.putText(img, emocion_es, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-            
-        except Exception as e:
-            # Si falla el análisis de este frame, simplemente continuamos
-            pass
+    # Normalize the image
+    normalized_image_array = (img_array.astype(np.float32) / 127.0) - 1
+    # Load the image into the array
+    data[0] = normalized_image_array
 
-    # Devolver la imagen procesada de vuelta al navegador
-    return av.VideoFrame.from_ndarray(img, format="bgr24")
+    # run the inference
+    prediction = model.predict(data)
+    print(prediction)
+    if prediction[0][0]>0.5:
+      st.header('Izquierda, con Probabilidad: '+str( prediction[0][0]) )
+    if prediction[0][1]>0.5:
+      st.header('Arriba, con Probabilidad: '+str( prediction[0][1]))
+    #if prediction[0][2]>0.5:
+    # st.header('Derecha, con Probabilidad: '+str( prediction[0][2]))
 
-# Iniciar el componente de la cámara
-webrtc_streamer(
-    key="detector-emociones",
-    video_frame_callback=procesar_frame,
-    rtc_configuration=RTC_CONFIGURATION,
-    media_stream_constraints={"video": True, "audio": False} # Solo necesitamos video
-)
 
-st.caption("Nota: La primera vez que se ejecute, el modelo tardará unos segundos en descargar los pesos de IA.")
