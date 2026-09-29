@@ -9,7 +9,7 @@ import streamlit as st
 # CONFIGURACIÓN DE PÁGINA (ESTILO ARCADE RETRO)
 # ─────────────────────────────────────────────
 st.set_page_config(
-    page_title="Detector de Gestos by bee",
+    page_title="Detector de gestos by bee",
     page_icon="🕹️",
     layout="centered",
     initial_sidebar_state="collapsed",
@@ -230,9 +230,18 @@ if img_file_buffer is not None:
   prediction = model.predict(data)
   print(prediction)
 
-  # Evaluamos cada índice del arreglo de predicción (0 a 3) según el orden de tus clases
-  # Índice 0: Sorprendido
-  if prediction[0][0] > 0.5:
+  # Encontrar automáticamente la clase con mayor puntaje (evita falsos bloqueos)
+  clase_ganadora = np.argmax(prediction[0])
+  confianza_ganadora = prediction[0][clase_ganadora]
+
+  # Panel de depuración opcional para ver qué está leyendo el modelo
+  st.markdown(
+      f"<div style='font-family: VT323; color: #ffff00; font-size: 1.2rem; text-align:center; margin-bottom: 10px;'>[DEBUG] Confianza ganadora: {confianza_ganadora:.2f} (Clase index: {clase_ganadora})</div>",
+      unsafe_allow_html=True,
+  )
+
+  # Renderizar el emoji y estado ganador de forma dinámica
+  if clase_ganadora == 0:
     st.markdown(
         """
         <div class="arcade-emoji-box" style="background: #201a00; border-color: #ffff00; color: #ffff00; box-shadow: 4px 4px 0px #ff007f;">
@@ -242,9 +251,7 @@ if img_file_buffer is not None:
         """,
         unsafe_allow_html=True,
     )
-
-  # Índice 1: Feliz
-  if prediction[0][1] > 0.5:
+  elif clase_ganadora == 1:
     st.markdown(
         """
         <div class="arcade-emoji-box" style="background: #002b1f; border-color: #00ffcc; color: #00ffcc; box-shadow: 4px 4px 0px #ffff00;">
@@ -254,36 +261,26 @@ if img_file_buffer is not None:
         """,
         unsafe_allow_html=True,
     )
-
-  # Índice 2: Triste (Asegúrate de haber entrenado esta clase en tu modelo .h5)
-  try:
-    if prediction[0][2] > 0.5:
-      st.markdown(
-          """
-            <div class="arcade-emoji-box" style="background: #00122b; border-color: #00f0ff; color: #00f0ff; box-shadow: 4px 4px 0px #ff007f;">
-                ESTADO: TRISTE<br><br>
-                <span style="font-size: 3.5rem;">😢</span>
-            </div>
-            """,
-          unsafe_allow_html=True,
-      )
-  except IndexError:
-    pass
-
-  # Índice 3: Enojado (Asegúrate de haber entrenado esta clase en tu modelo .h5)
-  try:
-    if prediction[0][3] > 0.5:
-      st.markdown(
-          """
-            <div class="arcade-emoji-box" style="background: #2b0000; border-color: #ff0044; color: #ff0044; box-shadow: 4px 4px 0px #00ffcc;">
-                ESTADO: ENOJADO<br><br>
-                <span style="font-size: 3.5rem;">😡</span>
-            </div>
-            """,
-          unsafe_allow_html=True,
-      )
-  except IndexError:
-    pass
+  elif clase_ganadora == 2:
+    st.markdown(
+        """
+        <div class="arcade-emoji-box" style="background: #00122b; border-color: #00f0ff; color: #00f0ff; box-shadow: 4px 4px 0px #ff007f;">
+            ESTADO: TRISTE<br><br>
+            <span style="font-size: 3.5rem;">😢</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+  elif clase_ganadora == 3:
+    st.markdown(
+        """
+        <div class="arcade-emoji-box" style="background: #2b0000; border-color: #ff0044; color: #ff0044; box-shadow: 4px 4px 0px #00ffcc;">
+            ESTADO: ENOJADO<br><br>
+            <span style="font-size: 3.5rem;">😡</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # ─────────────────────────────────────────────
 # PIE DE PÁGINA RETRO
