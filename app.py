@@ -32,14 +32,13 @@ st.markdown(
 
     p, li, label {
         font-family: 'VT323', monospace !important;
-        font-size: 24px !important;
+        font-size: 26px !important;
         color: #e0ffff !important;
     }
 
-    /* Contenedor estilo Cyber / Retro */
     .y2k-box {
         border: 3px dashed #ff007f;
-        background: rgba(18, 5, 35, 0.8);
+        background: rgba(18, 5, 35, 0.85);
         padding: 20px;
         box-shadow: 0px 0px 20px #ff007f;
         border-radius: 10px;
@@ -47,7 +46,6 @@ st.markdown(
         margin-bottom: 20px;
     }
 
-    /* Marquesina retro */
     marquee {
         font-family: 'Press Start 2P', cursive;
         color: #ffff00;
@@ -58,13 +56,16 @@ st.markdown(
         margin-bottom: 15px;
     }
 
-    /* Badge de emoción gigante */
-    .emotion-display {
-        font-size: 60px;
+    /* Caja gigante para el emoji en tiempo real */
+    .emoji-container {
+        font-size: 90px;
         text-align: center;
-        font-weight: bold;
-        text-shadow: 0 0 10px #ff007f, 0 0 20px #00ffcc;
-        margin: 10px 0;
+        background: rgba(0, 255, 204, 0.1);
+        border: 2px solid #00ffcc;
+        border-radius: 15px;
+        padding: 10px;
+        margin: 15px 0;
+        box-shadow: 0 0 15px #00ffcc;
     }
     </style>
 """,
@@ -83,11 +84,15 @@ st.markdown(
     """
 <div class="y2k-box">
     <p>¡El sistema detectará tu vibra cibernética en tiempo real!</p>
-    <p style="font-size: 18px; color: #ff007f !important;">Emociones soportadas: Feliz 😊 | Triste 😢 | Enojado 😡 | Sorprendido 😲</p>
+    <p style="font-size: 20px; color: #ff007f !important;">Emociones: Feliz 😊 | Triste 😢 | Enojado 😡 | Sorprendido 😲</p>
 </div>
 """,
     unsafe_allow_html=True,
 )
+
+# Contenedor visual dinámico fuera del video para los Emojis gigantes
+emoji_display = st.empty()
+text_display = st.empty()
 
 
 # Cargar el modelo con caché
@@ -106,10 +111,6 @@ except Exception as e:
       f"⚠️ ERROR CRÍTICO EN EL SISTEMA: No se pudo cargar el modelo. Detalle:"
       f" {e}"
   )
-
-# Contenedor dinámico en la interfaz para mostrar el emoji en tiempo real
-emoji_placeholder = st.empty()
-info_placeholder = st.empty()
 
 
 # Procesador de video WebRTC
@@ -133,7 +134,7 @@ class EmotionProcessor:
       class_name = " ".join(class_name.split(" ")[1:])
     class_clean = class_name.lower().strip()
 
-    # Asignar Emojis y colores según la emoción detectada
+    # Asignar Emojis correspondientes de forma segura para la interfaz
     if "feliz" in class_clean or "happy" in class_clean:
       emoji = "😁"
       color = (0, 255, 0)
@@ -152,11 +153,21 @@ class EmotionProcessor:
 
     confidence = float(prediction[0][index]) * 100
 
-    # Guardamos el estado global o dibujamos en video
-    text = f"{emoji} {class_name.upper()} ({confidence:.1f}%)"
+    # Actualizamos los elementos visuales de la interfaz de Streamlit desde el proceso de video
+    emoji_display.markdown(
+        f'<div class="emoji-container">{emoji}</div>', unsafe_allow_html=True
+    )
+    text_display.markdown(
+        f"<h3 style='color: #00ffcc !important;'>ESTADO: {class_name.upper()}"
+        f" ({confidence:.1f}%)</h3>",
+        unsafe_allow_html=True,
+    )
+
+    # Dibujar texto limpio en el video (sin emojis para evitar errores de OpenCV)
+    text_cv = f"{class_name.upper()} ({confidence:.1f}%)"
     cv2.putText(
         img,
-        text,
+        text_cv,
         (20, 40),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.8,
@@ -166,7 +177,7 @@ class EmotionProcessor:
     )
     cv2.putText(
         img,
-        text,
+        text_cv,
         (20, 40),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.8,
