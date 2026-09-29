@@ -1,296 +1,98 @@
-from PIL import Image as Image, ImageOps as ImagOps
+import av
 import cv2
-from keras.models import load_model
 import numpy as np
-import platform
 import streamlit as st
+from keras.models import load_model
+from streamlit_webrtc import WebRtcMode, webrtc_streamer
 
-# ─────────────────────────────────────────────
-# CONFIGURACIÓN DE PÁGINA (ESTILO ARCADE RETRO)
-# ─────────────────────────────────────────────
+# Configuración de la página de Streamlit
 st.set_page_config(
-    page_title="Detector de gestos by bee",
-    page_icon="🕹️",
-    layout="centered",
-    initial_sidebar_state="collapsed",
+    page_title="Detector de Emociones", page_icon="😊", layout="centered"
 )
 
-# ─────────────────────────────────────────────
-# ESTILOS CSS: ESTÉTICA ARCADE / RETRO 80s / PIXEL
-# ─────────────────────────────────────────────
-st.markdown(
-    """
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
-
-    /* Fondo general estilo máquina recreativa oscura con scanlines */
-    .stApp {
-        background-color: #0b061a !important;
-        background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)) !important;
-        background-size: 100% 4px, 6px 100% !important;
-        color: #00ffcc !important;
-        font-family: 'VT323', monospace !important;
-    }
-
-    /* Ocultar elementos nativos molestos de streamlit */
-    #MainMenu, footer, header {visibility: hidden;}
-
-    /* Marquesina Estilo Arcade */
-    .arcade-marquee {
-        background: linear-gradient(180deg, #ff007f 0%, #7b00ff 100%);
-        border: 4px solid #ffff00;
-        box-shadow: 0px 0px 20px #ff007f, inset 0px 0px 10px #ffff00;
-        text-align: center;
-        padding: 20px;
-        margin-bottom: 25px;
-        border-radius: 4px;
-    }
-
-    .arcade-title {
-        font-family: 'Press Start 2P', monospace !important;
-        font-size: 1.4rem !important;
-        color: #ffff00 !important;
-        text-shadow: 3px 3px #ff007f, 6px 6px #000000;
-        margin: 0;
-        line-height: 1.5;
-    }
-
-    .arcade-subtitle {
-        font-family: 'VT323', monospace !important;
-        font-size: 1.5rem !important;
-        color: #00ffcc !important;
-        margin-top: 8px;
-        text-shadow: 2px 2px #000000;
-        letter-spacing: 2px;
-    }
-
-    /* Contenedores tipo Gabinete / Tarjeta */
-    .arcade-cabinet {
-        background: #150b2e;
-        border: 3px dashed #00ffcc;
-        box-shadow: 5px 5px 0px #ff007f;
-        padding: 20px;
-        margin-bottom: 20px;
-    }
-
-    /* Estilos de resultados Arcade con Emojis */
-    .arcade-emoji-box {
-        font-family: 'Press Start 2P', monospace;
-        font-size: 1rem !important;
-        padding: 20px;
-        text-align: center;
-        margin-top: 15px;
-        border-width: 3px;
-        border-style: solid;
-    }
-
-    /* Botones de Cámara Arcade */
-    button[data-testid="stBaseButton-secondary"] {
-        background-color: #ffff00 !important;
-        color: #000000 !important;
-        border: 3px solid #ff007f !important;
-        font-family: 'Press Start 2P', monospace !important;
-        font-size: 0.8rem !important;
-        box-shadow: 4px 4px 0px #00ffcc !important;
-        border-radius: 0px !important;
-    }
-    button[data-testid="stBaseButton-secondary"]:hover {
-        background-color: #ff007f !important;
-        color: #ffff00 !important;
-        box-shadow: 4px 4px 0px #ffff00 !important;
-    }
-
-    /* Sidebar Temático */
-    [data-testid="stSidebar"] {
-        background-color: #0d061c !important;
-        border-right: 4px solid #ff007f !important;
-    }
-    [data-testid="stSidebar"] * {
-        color: #ffff00 !important;
-        font-family: 'VT323', monospace !important;
-        font-size: 1.4rem !important;
-    }
-</style>
-""",
-    unsafe_allow_html=True,
+st.title("🧠 Detector de Emociones en Tiempo Real")
+st.write(
+    "Esta aplicación utiliza tu cámara web y un modelo de Inteligencia Artificial para detectar 4 emociones: **feliz, triste, enojado y sorprendido**."
 )
 
-# ─────────────────────────────────────────────
-# CARGA DEL MODELO Y CONFIGURACIÓN INICIAL
-# ─────────────────────────────────────────────
+
+# Cargar el modelo y las etiquetas con caché para optimizar el rendimiento
 @st.cache_resource
-def load_keras_model():
-  return load_model("keras_model.h5")
+def load_emotion_model():
+  # Deshabilitar la compilación para evitar problemas de compatibilidad con versiones de Keras/TensorFlow
+  model = load_model("keras_model.h5", compile=False)
+  with open("labels.txt", "r", encoding="utf-8") as f:
+    class_names = [line.strip() for line in f.readlines()]
+  return model, class_names
 
-
-model = load_keras_model()
-data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
-
-# ─────────────────────────────────────────────
-# MARQUESINA SUPERIOR (HEADER)
-# ─────────────────────────────────────────────
-st.markdown(
-    """
-<div class="arcade-marquee">
-    <h1 class="arcade-title">Detector de gestos<br><span style="color: #00ffcc;">by bee</span></h1>
-    <div class="arcade-subtitle">★ EMOTION SCANNER ACTIVE ★</div>
-</div>
-""",
-    unsafe_allow_html=True,
-)
-
-# Información de sistema en versión retro
-col_info1, col_info2 = st.columns([2, 1])
-with col_info1:
-  st.markdown(
-      f"<span style='color: #ffff00; font-family: VT323; font-size: 1.3rem;'>[SYS_VER]: Python {platform.python_version()}</span>",
-      unsafe_allow_html=True,
-  )
-with col_info2:
-  st.markdown(
-      "<span style='color: #ff007f; font-family: VT323; font-size: 1.3rem; float:right;'>CREDITS: [ 01 ]</span>",
-      unsafe_allow_html=True,
-  )
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# ─────────────────────────────────────────────
-# SECCIÓN DE IMAGEN DE REFERENCIA / MUESTRA
-# ─────────────────────────────────────────────
-st.markdown(
-    """
-<div class="arcade-cabinet">
-    <div style="font-family: 'Press Start 2P'; font-size: 0.8rem; color: #ffff00; margin-bottom: 10px;">STAGE 0: REFERENCE ASSET</div>
-""",
-    unsafe_allow_html=True,
-)
 
 try:
-  image = Image.open("OIG5.jpg")
-  st.image(image, width=350)
-except Exception:
-  st.warning(
-      "⚠️ [WARNING]: Imagen de referencia 'OIG5.jpg' no encontrada en el"
-      " directorio."
+  model, class_names = load_emotion_model()
+except Exception as e:
+  st.error(
+    f"Error al cargar el modelo o las etiquetas. Asegúrate de subir 'keras_model.h5' y 'labels.txt'. Detalle: {e}"
   )
 
-st.markdown("</div>", unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────
-# BARRA LATERAL (SIDEBAR) ESTILO INVENTARIO ARCADE
-# ─────────────────────────────────────────────
-with st.sidebar:
-  st.markdown("### 🕹️ EMOTION INDEX")
-  st.markdown(
-      "Tu modelo en Teachable Machine debe estar entrenado en este orden exacto"
-      " de clases:"
-  )
-  st.markdown(
-      "• **Clase 0:** Sorprendido 😲<br>• **Clase 1:** Feliz 😃<br>•"
-      " **Clase 2:** Triste 😢<br>• **Clase 3:** Enojado 😡",
-      unsafe_allow_html=True,
-  )
-  st.markdown("---")
-  st.markdown(
-      "<b>CONTROLS:</b><br>• Conecta tu cámara.<br>• Haz tu gesto facial.",
-      unsafe_allow_html=True,
-  )
+# Procesador de video para WebRTC
+class EmotionProcessor:
 
-# ─────────────────────────────────────────────
-# CAPTURA DE CÁMARA (WIDGET PRINCIPAL)
-# ─────────────────────────────────────────────
-st.markdown(
-    """
-<div class="arcade-cabinet" style="border-color: #ff007f; box-shadow: 5px 5px 0px #00ffcc;">
-    <div style="font-family: 'Press Start 2P'; font-size: 0.8rem; color: #ff007f; margin-bottom: 10px;">STAGE 1: CAMERA SCANNER</div>
-""",
-    unsafe_allow_html=True,
+  def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
+    img = frame.to_ndarray(format="bgr24")
+
+    # Redimensionar la imagen a 224x224 (tamaño estándar requerido por Teachable Machine)
+    resized_img = cv2.resize(img, (224, 224), interpolation=cv2.INTER_AREA)
+    image_array = np.asarray(resized_img, dtype=np.float32)
+
+    # Normalizar la imagen exactamente como lo hace Teachable Machine (-1 a 1)
+    normalized_image_array = (image_array / 127.5) - 1.0
+
+    # Crear la matriz de entrada para la predicción
+    data = np.expand_dims(normalized_image_array, axis=0)
+
+    # Hacer la predicción
+    prediction = model.predict(data, verbose=0)
+    index = np.argmax(prediction)
+    class_name = class_names[index]
+    # Limpiar el nombre de la clase (quita números de índice si los tiene, ej: "0 Feliz" -> "Feliz")
+    if " " in class_name:
+      class_name = " ".join(class_name.split(" ")[1:])
+    confidence_score = float(prediction[0][index])
+
+    # Dibujar el resultado en el fotograma de video que se muestra en pantalla
+    color = (0, 255, 0)
+    if "enojado" in class_name.lower():
+      color = (0, 0, 255)
+    elif "triste" in class_name.lower():
+      color = (255, 0, 0)
+    elif "sorprendido" in class_name.lower():
+      color = (0, 255, 255)
+
+    text = f"{class_name} ({confidence_score * 100:.1f}%)"
+    cv2.putText(
+        img, text, (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA
+    )
+
+    return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+
+# Configurar el componente de transmisión de la cámara web
+webrtc_streamer(
+    key="emotion-detection",
+    mode=WebRtcMode.SENDRECV,
+    video_processor_factory=EmotionProcessor,
+    media_stream_constraints={"video": True, "audio": False},
+    rtc_configuration={
+        "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+    },
 )
 
-img_file_buffer = st.camera_input("PLAYER 1: TOMA UNA FOTO")
-
-st.markdown("</div>", unsafe_allow_html=True)
-
-# ─────────────────────────────────────────────
-# LÓGICA DE INFERENCIA Y PREDICCIÓN CON EMOJIS
-# ─────────────────────────────────────────────
-if img_file_buffer is not None:
-  # Leer imagen con PIL y redimensionar a 224x224
-  data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
-  img = Image.open(img_file_buffer)
-  newsize = (224, 224)
-  img = img.resize(newsize)
-
-  # Convertir a numpy array y normalizar
-  img_array = np.array(img)
-  normalized_image_array = (img_array.astype(np.float32) / 127.0) - 1
-  data[0] = normalized_image_array
-
-  # Ejecutar inferencia en el modelo Keras
-  prediction = model.predict(data)
-  print(prediction)
-
-  # Encontrar automáticamente la clase con mayor puntaje (evita falsos bloqueos)
-  clase_ganadora = np.argmax(prediction[0])
-  confianza_ganadora = prediction[0][clase_ganadora]
-
-  # Panel de depuración opcional para ver qué está leyendo el modelo
-  st.markdown(
-      f"<div style='font-family: VT323; color: #ffff00; font-size: 1.2rem; text-align:center; margin-bottom: 10px;'>[DEBUG] Confianza ganadora: {confianza_ganadora:.2f} (Clase index: {clase_ganadora})</div>",
-      unsafe_allow_html=True,
-  )
-
-  # Renderizar el emoji y estado ganador de forma dinámica
-  if clase_ganadora == 0:
-    st.markdown(
-        """
-        <div class="arcade-emoji-box" style="background: #201a00; border-color: #ffff00; color: #ffff00; box-shadow: 4px 4px 0px #ff007f;">
-            ESTADO: SORPRENDIDO<br><br>
-            <span style="font-size: 3.5rem;">😲</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-  elif clase_ganadora == 1:
-    st.markdown(
-        """
-        <div class="arcade-emoji-box" style="background: #002b1f; border-color: #00ffcc; color: #00ffcc; box-shadow: 4px 4px 0px #ffff00;">
-            ESTADO: FELIZ<br><br>
-            <span style="font-size: 3.5rem;">😃</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-  elif clase_ganadora == 2:
-    st.markdown(
-        """
-        <div class="arcade-emoji-box" style="background: #00122b; border-color: #00f0ff; color: #00f0ff; box-shadow: 4px 4px 0px #ff007f;">
-            ESTADO: TRISTE<br><br>
-            <span style="font-size: 3.5rem;">😢</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-  elif clase_ganadora == 3:
-    st.markdown(
-        """
-        <div class="arcade-emoji-box" style="background: #2b0000; border-color: #ff0044; color: #ff0044; box-shadow: 4px 4px 0px #00ffcc;">
-            ESTADO: ENOJADO<br><br>
-            <span style="font-size: 3.5rem;">😡</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-# ─────────────────────────────────────────────
-# PIE DE PÁGINA RETRO
-# ─────────────────────────────────────────────
-st.markdown("<br><hr style='border: 2px dashed #ff007f;'>", unsafe_allow_html=True)
+st.markdown("---")
+st.markdown("### 📋 Instrucciones:")
+st.markdown("1. Haz clic en **START** para encender la cámara.")
 st.markdown(
-    """
-<div style="text-align: center; font-family: 'VT323'; color: #ffff00; font-size: 1.4rem;">
-    © 198X-2026 // Detector de gestos by bee — ALL RIGHTS RESERVED
-</div>
-""",
-    unsafe_allow_html=True,
+    "2. Concede los permisos de tu navegador para acceder a la cámara web."
+)
+st.markdown(
+    "3. Colócate frente a la cámara y expresa una de las 4 emociones."
 )
