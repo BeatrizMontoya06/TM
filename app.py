@@ -9,7 +9,7 @@ import streamlit as st
 # CONFIGURACIÓN DE PÁGINA (ESTILO ARCADE RETRO)
 # ─────────────────────────────────────────────
 st.set_page_config(
-    page_title="Detección de objetos by bee",
+    page_title="Detección de Gestos by bee",
     page_icon="🕹️",
     layout="centered",
     initial_sidebar_state="collapsed",
