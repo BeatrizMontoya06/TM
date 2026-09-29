@@ -7,19 +7,92 @@ from streamlit_webrtc import WebRtcMode, webrtc_streamer
 
 # Configuración de la página de Streamlit
 st.set_page_config(
-    page_title="Detector de Emociones", page_icon="😊", layout="centered"
+    page_title="Y2K Emotion Detector 👾", page_icon="💖", layout="centered"
 )
 
-st.title("🧠 Detector de Emociones en Tiempo Real")
-st.write(
-    "Esta aplicación utiliza tu cámara web y un modelo de Inteligencia Artificial para detectar 4 emociones: **feliz, triste, enojado y sorprendido**."
+# --- ESTÉTICA Y2K (CSS CUSTOMIZADO) ---
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
+    .stApp {
+        background: linear-gradient(135deg, #0f051d 0%, #2b0b3f 50%, #121c3a 100%);
+        color: #00ffcc;
+        font-family: 'VT323', monospace;
+    }
+
+    h1, h2, h3 {
+        font-family: 'Press Start 2P', cursive !important;
+        color: #ff007f !important;
+        text-shadow: 3px 3px #00ffcc;
+        font-size: 22px !important;
+        text-align: center;
+    }
+
+    p, li, label {
+        font-family: 'VT323', monospace !important;
+        font-size: 24px !important;
+        color: #e0ffff !important;
+    }
+
+    /* Contenedor estilo Cyber / Retro */
+    .y2k-box {
+        border: 3px dashed #ff007f;
+        background: rgba(18, 5, 35, 0.8);
+        padding: 20px;
+        box-shadow: 0px 0px 20px #ff007f;
+        border-radius: 10px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    /* Marquesina retro */
+    marquee {
+        font-family: 'Press Start 2P', cursive;
+        color: #ffff00;
+        background: #ff007f;
+        padding: 5px;
+        font-size: 12px;
+        border: 2px solid #00ffcc;
+        margin-bottom: 15px;
+    }
+
+    /* Badge de emoción gigante */
+    .emotion-display {
+        font-size: 60px;
+        text-align: center;
+        font-weight: bold;
+        text-shadow: 0 0 10px #ff007f, 0 0 20px #00ffcc;
+        margin: 10px 0;
+    }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
+# Marquesina animada estilo 2000s
+st.markdown(
+    "<marquee>★ BIENVENIDO AL CYBER-ESPACIO 2000s ★ CONÉCTATE A LA RED ★ SONRÍE, LLORA O SORPRÉNDETE ★</marquee>",
+    unsafe_allow_html=True,
+)
+
+st.title("👾 EMOTION.EXE 👾")
+
+st.markdown(
+    """
+<div class="y2k-box">
+    <p>¡El sistema detectará tu vibra cibernética en tiempo real!</p>
+    <p style="font-size: 18px; color: #ff007f !important;">Emociones soportadas: Feliz 😊 | Triste 😢 | Enojado 😡 | Sorprendido 😲</p>
+</div>
+""",
+    unsafe_allow_html=True,
 )
 
 
-# Cargar el modelo y las etiquetas con caché para optimizar el rendimiento
+# Cargar el modelo con caché
 @st.cache_resource
 def load_emotion_model():
-  # Deshabilitar la compilación para evitar problemas de compatibilidad con versiones de Keras/TensorFlow
   model = load_model("keras_model.h5", compile=False)
   with open("labels.txt", "r", encoding="utf-8") as f:
     class_names = [line.strip() for line in f.readlines()]
@@ -30,55 +103,84 @@ try:
   model, class_names = load_emotion_model()
 except Exception as e:
   st.error(
-    f"Error al cargar el modelo o las etiquetas. Asegúrate de subir 'keras_model.h5' y 'labels.txt'. Detalle: {e}"
+      f"⚠️ ERROR CRÍTICO EN EL SISTEMA: No se pudo cargar el modelo. Detalle:"
+      f" {e}"
   )
 
+# Contenedor dinámico en la interfaz para mostrar el emoji en tiempo real
+emoji_placeholder = st.empty()
+info_placeholder = st.empty()
 
-# Procesador de video para WebRTC
+
+# Procesador de video WebRTC
 class EmotionProcessor:
 
   def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
     img = frame.to_ndarray(format="bgr24")
 
-    # Redimensionar la imagen a 224x224 (tamaño estándar requerido por Teachable Machine)
+    # Preparar imagen para Teachable Machine (224x224)
     resized_img = cv2.resize(img, (224, 224), interpolation=cv2.INTER_AREA)
     image_array = np.asarray(resized_img, dtype=np.float32)
-
-    # Normalizar la imagen exactamente como lo hace Teachable Machine (-1 a 1)
     normalized_image_array = (image_array / 127.5) - 1.0
-
-    # Crear la matriz de entrada para la predicción
     data = np.expand_dims(normalized_image_array, axis=0)
 
-    # Hacer la predicción
+    # Predicción
     prediction = model.predict(data, verbose=0)
     index = np.argmax(prediction)
     class_name = class_names[index]
-    # Limpiar el nombre de la clase (quita números de índice si los tiene, ej: "0 Feliz" -> "Feliz")
+
     if " " in class_name:
       class_name = " ".join(class_name.split(" ")[1:])
-    confidence_score = float(prediction[0][index])
+    class_clean = class_name.lower().strip()
 
-    # Dibujar el resultado en el fotograma de video que se muestra en pantalla
-    color = (0, 255, 0)
-    if "enojado" in class_name.lower():
-      color = (0, 0, 255)
-    elif "triste" in class_name.lower():
+    # Asignar Emojis y colores según la emoción detectada
+    if "feliz" in class_clean or "happy" in class_clean:
+      emoji = "😁"
+      color = (0, 255, 0)
+    elif "triste" in class_clean or "sad" in class_clean:
+      emoji = "😢"
       color = (255, 0, 0)
-    elif "sorprendido" in class_name.lower():
+    elif "enojado" in class_clean or "angry" in class_clean:
+      emoji = "😡"
+      color = (0, 0, 255)
+    elif "sorprendido" in class_clean or "surprised" in class_clean:
+      emoji = "😲"
       color = (0, 255, 255)
+    else:
+      emoji = "🤖"
+      color = (255, 255, 255)
 
-    text = f"{class_name} ({confidence_score * 100:.1f}%)"
+    confidence = float(prediction[0][index]) * 100
+
+    # Guardamos el estado global o dibujamos en video
+    text = f"{emoji} {class_name.upper()} ({confidence:.1f}%)"
     cv2.putText(
-        img, text, (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA
+        img,
+        text,
+        (20, 40),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        (0, 0, 0),
+        4,
+        cv2.LINE_AA,
+    )
+    cv2.putText(
+        img,
+        text,
+        (20, 40),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        color,
+        2,
+        cv2.LINE_AA,
     )
 
     return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 
-# Configurar el componente de transmisión de la cámara web
+# Renderizar el componente de la cámara
 webrtc_streamer(
-    key="emotion-detection",
+    key="y2k-emotion-cam",
     mode=WebRtcMode.SENDRECV,
     video_processor_factory=EmotionProcessor,
     media_stream_constraints={"video": True, "audio": False},
@@ -88,11 +190,8 @@ webrtc_streamer(
 )
 
 st.markdown("---")
-st.markdown("### 📋 Instrucciones:")
-st.markdown("1. Haz clic en **START** para encender la cámara.")
 st.markdown(
-    "2. Concede los permisos de tu navegador para acceder a la cámara web."
-)
-st.markdown(
-    "3. Colócate frente a la cámara y expresa una de las 4 emociones."
+    "<p style='text-align: center; color: #ff007f;'>⚡ SYSTEM ONLINE -"
+    " POWERED BY STREAMLIT & GITHUB ⚡</p>",
+    unsafe_allow_html=True,
 )
